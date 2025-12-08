@@ -480,6 +480,131 @@ def draw_hud(font, elapsed_time, player_x, player_y, cell_size, has_won=False, w
 
 
 
+def draw_help_overlay(font):
+    """Draw semi-transparent help overlay with controls and item descriptions"""
+    # Draw semi-transparent black background
+    # We'll use glBlendFunc for transparency
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_LIGHTING)
+    
+    # Switch to 2D orthographic projection
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, 1000, 0, 800, -1, 1)  # Match display size
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    # Draw dark overlay
+    glColor4f(0.0, 0.0, 0.0, 0.7)  # Black with 70% opacity
+    glBegin(GL_QUADS)
+    glVertex2f(0, 0)
+    glVertex2f(1000, 0)
+    glVertex2f(1000, 800)
+    glVertex2f(0, 800)
+    glEnd()
+    
+    # Restore matrices
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    
+    glDisable(GL_BLEND)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    
+    # Now draw text over the overlay
+    title_font = pygame.font.SysFont('Arial', 36, bold=True)
+    section_font = pygame.font.SysFont('Arial', 24, bold=True)
+    text_font = pygame.font.SysFont('Arial', 20)
+    
+    y_pos = 750
+    
+    # Title
+    title_surf = title_font.render("=== HELP / CONTROLS ===", True, (255, 255, 100), (0, 0, 0))
+    title_data = pygame.image.tostring(title_surf, "RGBA", True)
+    glWindowPos2d(300, y_pos)
+    glDrawPixels(title_surf.get_width(), title_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, title_data)
+    y_pos -= 60
+    
+    # Controls section
+    controls = [
+        ("MOVEMENT:", None),
+        ("  W/A/S/D", "Move forward/left/backward/right"),
+        ("  Mouse", "Look around"),
+        ("", None),
+        ("ACTIONS:", None),
+        ("  H", "Toggle this help screen"),
+        ("  1", "Use wall breaker (break facing wall)"),
+        ("  3", "Drop glow stick marker (3 max)"),
+        ("  T", "Teleport (when on purple pad)"),
+        ("  R", "Reset to start"),
+        ("  N", "Generate new maze"),
+        ("  ESC", "Exit game"),
+    ]
+    
+    section_surf = section_font.render("CONTROLS:", True, (100, 200, 255), (0, 0, 0))
+    section_data = pygame.image.tostring(section_surf, "RGBA", True)
+    glWindowPos2d(50, y_pos)
+    glDrawPixels(section_surf.get_width(), section_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, section_data)
+    y_pos -= 35
+    
+    for key, desc in controls:
+        if desc is None:
+            # Section header
+            text_surf = text_font.render(key, True, (200, 200, 200), (0, 0, 0))
+        else:
+            text_surf = text_font.render(f"{key:12} - {desc}", True, (220, 220, 220), (0, 0, 0))
+        text_data = pygame.image.tostring(text_surf, "RGBA", True)
+        glWindowPos2d(60, y_pos)
+        glDrawPixels(text_surf.get_width(), text_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+        y_pos -= 25
+    
+    # Items section
+    y_pos = 750
+    x_pos = 550
+    
+    section_surf = section_font.render("GAME ELEMENTS:", True, (100, 200, 255), (0, 0, 0))
+    section_data = pygame.image.tostring(section_surf, "RGBA", True)
+    glWindowPos2d(x_pos, y_pos)
+    glDrawPixels(section_surf.get_width(), section_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, section_data)
+    y_pos -= 40
+    
+    items = [
+        ("POWER-UPS (collect to use):", (255, 255, 150)),
+        ("  Orange Cube - Wall Breaker", (255, 150, 50)),
+        ("  Cyan Torus - Shield (blocks trap)", (100, 200, 255)),
+        ("", (255, 255, 255)),
+        ("TRAPS (single use):", (255, 150, 150)),
+        ("  Red Sphere - Reset to start", (255, 100, 100)),
+        ("  Gray Sphere - Dark zone (15s)", (150, 150, 150)),
+        ("  Pink Sphere - Invert controls (15s)", (255, 150, 255)),
+        ("", (255, 255, 255)),
+        ("OTHER:", (150, 255, 150)),
+        ("  Green Sphere - Goal!", (100, 255, 100)),
+        ("  Purple Disc - Teleport pad", (200, 100, 255)),
+        ("  Yellow Mark - Your glow stick", (255, 255, 100)),
+    ]
+    
+    for text, color in items:
+        if text:
+            text_surf = text_font.render(text, True, color, (0, 0, 0))
+            text_data = pygame.image.tostring(text_surf, "RGBA", True)
+            glWindowPos2d(x_pos + 10, y_pos)
+            glDrawPixels(text_surf.get_width(), text_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+        y_pos -= 25
+    
+    # Bottom message
+    msg_surf = text_font.render("Press H to close help", True, (255, 255, 100), (0, 0, 0))
+    msg_data = pygame.image.tostring(msg_surf, "RGBA", True)
+    glWindowPos2d(400, 20)
+    glDrawPixels(msg_surf.get_width(), msg_surf.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, msg_data)
+
+
 def main():
     pygame.init()
     display = (1000, 800)
@@ -615,8 +740,12 @@ def main():
     last_teleport_cell = None
     teleport_confirmation_pending = False
     
+    # Help screen state
+    show_help = False
+    
     print(f"Placed {len(reset_traps)} reset traps, {len(dark_traps)} dark traps, {len(invert_traps)} invert traps!")
     print(f"Placed {len(teleport_pads)} teleport pads!")
+    print("Press H at any time to toggle help screen!")
     
     # Initialize font for HUD
     pygame.font.init()
@@ -636,6 +765,9 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     run = False
+                if event.key == pygame.K_h:
+                    show_help = not show_help
+                    print(f"Help screen: {'ON' if show_help else 'OFF'}")
                 if event.key == pygame.K_r:
                     player_x = CELL_SIZE / 2
                     player_y = CELL_SIZE / 2
@@ -746,14 +878,13 @@ def main():
                                 target_cell_c -= 1
                         else:
                             if look_y > 0:
-                                wall_dir = 0  # North (looking in +Y direction, but wall index 0 is north which is -Y in our coords)
+                                wall_dir = 0  # North (looking in +Y direction, but wall index 0 is north which is -Y 
                                 target_cell_r -= 1
                             else:
                                 wall_dir = 2  # South
                                 target_cell_r += 1
                         
-                        # Wait, need to reconsider coordinate system
-                        # Our maze: row 0 is at y=0 (north), row increases going south (+Y)
+                        # row 0 is at y=0 (north), row increases going south (+Y)
                         # So North wall is at the -Y side (towards row-1)
                         # Recalculate properly:
                         if abs_y > abs_x:
@@ -767,10 +898,10 @@ def main():
                             else:
                                 wall_dir = 3  # West
                         
-                        # Check if wall exists and is not an outer wall
+                        # check if wall exists
                         idx = maze.index(cell_r, cell_c)
                         if maze.grid[idx].wall[wall_dir]:
-                            # Check if it's an outer wall
+                            # Check if its an outer wall
                             is_outer = False
                             if cell_r == 0 and wall_dir == 0:  # North wall of top row
                                 is_outer = True
@@ -782,9 +913,9 @@ def main():
                                 is_outer = True
                             
                             if not is_outer:
-                                # Break the wall!
+                                # break the wall
                                 maze.grid[idx].wall[wall_dir] = False
-                                # Also break the opposite wall of the adjacent cell
+                                # also break the opposite wall of the adjacent cell
                                 if wall_dir == 0 and cell_r > 0:
                                     adj_idx = maze.index(cell_r - 1, cell_c)
                                     maze.grid[adj_idx].wall[2] = False
@@ -1076,6 +1207,10 @@ def main():
         dark_active = current_time < dark_zone_end_time
         invert_active = current_time < invert_controls_end_time
         draw_hud(font, elapsed, player_x, player_y, CELL_SIZE, has_won, win_time, glow_remaining, teleport_confirmation_pending, has_wall_breaker, has_shield, dark_active, invert_active)
+        
+        # Draw help overlay if toggled on
+        if show_help:
+            draw_help_overlay(font)
         
         pygame.display.flip()
         clock.tick(60)
